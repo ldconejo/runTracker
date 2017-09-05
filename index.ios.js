@@ -38,10 +38,6 @@ class HomeScreen extends React.Component {
           onPress={() => navigate('Login')}
           title="Login"
         />
-        <Button
-          onPress={() => navigate('NewUser')}
-          title="New User"
-        />
       </View>
     ) 
   }
@@ -53,6 +49,7 @@ class LoginScreen extends React.Component {
     super(props);
     this.state = {
                   userEmail: 'None',
+                  userRole: 'None',
                   myPassword: 'None',
                   response: 'Not logged in',
                 };
@@ -72,7 +69,27 @@ class LoginScreen extends React.Component {
           
           // Get user id for the authenticated user
           let userID = firebase.auth().currentUser.uid;
-          navigate('RegularUser');
+
+          // Determine user access level, based on role assigned in database
+          await Database.getUserRole(userID, (userRole) => {
+              this.setState({
+                  userRole: userRole,
+                  response: userRole,
+              });
+
+            switch(this.state.userRole) {
+              case 'Regular User':
+                navigate('RegularUser');
+                break;
+              case 'Admin':
+                navigate('AdminUser');
+                break;
+              case 'Manager':
+                navigate('ManagerUser');
+                break;
+            }
+          });
+
       } catch (error) {
           this.setState({
               response: error.toString()
@@ -87,6 +104,7 @@ class LoginScreen extends React.Component {
         <TextInput
           style={{height: 40}}
           autoCapitalize = 'none'
+          autoCorrect = {false}
           placeholder="Enter your email"
           onChangeText={(userEmail) => this.setState({userEmail})}
         />
@@ -203,9 +221,7 @@ class RegularUserScreen extends React.Component {
 
     // Get user name
     Database.listenUserName(this.state.userID, (userName) => {
-        this.setState({
-            userName: userName,
-        });
+      this.userName = userName;  
     });
     
   }
@@ -257,7 +273,7 @@ class AdminUserScreen extends React.Component {
           title="Add new user"
         />
         <Button
-          onPress={() => navigate('EditUser')}
+          onPress={() => navigate('AllUsers')}
           title="Edit user"
         />
         <Button
@@ -279,18 +295,35 @@ class MyActivityScreen extends React.Component {
     this.state = {
                   userID: 'None',
                   userActivities: [],
+                  isLoading: true,
                 };
     // Get userID
     this.state.userID = firebase.auth().currentUser.uid;
+  } 
 
-    // Get user activities
-    Database.getUserActivities(this.state.userID, (userActivities) => {
-      this.state.userActivities = userActivities  
-    });
-    
+  async getUserActivities(){
+    try {
+        Database.getUserActivities(this.state.userID, (userActivities) => {
+          this.state.userActivities = userActivities
+          this.setState({
+            // This is required to trigger a re-render once the data has been loaded
+            isLoading: false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
   }
+
   render() {
     const { navigate } = this.props.navigation;
+    if (this.state.isLoading){
+      this.getUserActivities();
+      return <View><Text>Loading...</Text></View>;
+    }
     return (
       <View>
         <FlatList
@@ -301,6 +334,165 @@ class MyActivityScreen extends React.Component {
               title={item.activityDate}
         /> }
         />
+      </View>
+    )
+  }
+}
+
+// All users screen
+class AllUsersScreen extends React.Component {
+  static navigationOptions = {
+    title: 'Select user to edit',
+  };
+  constructor(props) {
+    super(props);
+    this.state = {
+                  userList: [],
+                  isLoading: true,
+                };
+  } 
+
+  async getUserList(){
+    try {
+        Database.getListOfUsers((userList) => {
+          this.state.userList = userList
+          this.setState({
+            // This is required to trigger a re-render once the data has been loaded
+            isLoading: false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }
+
+  render() {
+    const { navigate } = this.props.navigation;
+    if (this.state.isLoading){
+      this.getUserList();
+      return <View><Text>Loading...</Text></View>;
+    }
+    return (
+      <View>
+        <FlatList
+          data={this.state.userList}
+          renderItem={({item}) => 
+            <Button
+              onPress={() => navigate('EditUser', {userParams : item})}
+              title={item.details.userEmail}
+        /> }
+        />
+      </View>
+    )
+  }
+}
+
+class EditUserScreen extends React.Component {
+  static navigationOptions = {
+    title: 'Edit user',
+  };
+  constructor(props) {
+    super(props);
+    this.state = {
+      userID: 'None',
+      userEmail: 'None',
+      userLastName: 'None',
+      userName : 'None',
+      userManager : 'None',
+      userRole : 'None',
+      response : '',
+    }
+    // Get userID
+    this.state.userID = this.props.navigation.state.params.userParams.key;
+    this.state.userEmail = this.props.navigation.state.params.userParams.details.userEmail;
+    this.state.userLastName = this.props.navigation.state.params.userParams.details.userLastName;
+    this.state.userName = this.props.navigation.state.params.userParams.details.userName;
+    this.state.userManager = this.props.navigation.state.params.userParams.details.userManager;
+    this.state.userRole = this.props.navigation.state.params.userParams.details.userRole;
+
+  }  
+  // Triggers update to the database
+  async updateUser() {
+    try {
+        Database.updateUser(this.state.userID, this.state.userEmail, this.state.userLastName, this.state.userName, this.state.userManager, this.state.userRole );
+        this.setState({
+            response: "User updated"
+        })
+        const { navigate } = this.props.navigation;
+        navigate('AdminUser');
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }  
+  // Handle deletion of user
+  async deleteUser() {
+    const { navigate } = this.props.navigation;
+    Alert.alert(
+      'Delete User',
+      'This user will be deleted. Are you sure?',
+      [
+        {text: 'Cancel', onPress: () => console.log('Cancel Pressed'), style: 'cancel'},
+        {text: 'Delete', onPress: () => {
+                                          Database.deleteUser(this.state.userID);
+                                          Alert.alert(
+                                            '30Palos',
+                                            'User Deleted',
+                                            [
+                                              {text: 'OK', onPress: () => navigate('AdminUser')},
+                                            ]
+                                          )
+                                        }},
+      ],
+      { cancelable: false }
+    )
+  }
+  render() {
+    const { navigate } = this.props.navigation;
+    return(
+      <View  style={{padding: 10}}>
+        <Text>E-mail: {this.state.userEmail}</Text>
+        <TextInput
+          style={{height: 40}}
+          keyboardType="email-address"
+          autoCapitalize = 'none'
+          placeholder="New email"
+          onChangeText={(userEmail) => this.setState({userEmail})}
+        />
+        <Text>Last Name: {this.state.userLastName}</Text>
+        <TextInput
+          style={{height: 40}}
+          placeholder="New last name"
+          onChangeText={(userLastName) => this.setState({userLastName})}
+        />
+        <Text>Name: {this.state.userName}</Text>
+        <TextInput
+          style={{height: 40}}
+          placeholder="New name"
+          onChangeText={(userName) => this.setState({userName})}
+        />
+        <Text>Manager: {this.state.userManager}</Text>
+        <Picker
+          selectedValue={this.state.userRole}
+          onValueChange={(itemValue, itemIndex) => this.setState({userRole: itemValue})}>
+          <Picker.Item label="Regular User" value="Regular" />
+          <Picker.Item label="Manager" value="Manager" />
+          <Picker.Item label="Admin" value="Admin" />
+        </Picker>
+        <Button
+          onPress={() => this.updateUser()}
+          title="Update"
+        />
+        <Button
+          onPress={() => this.deleteUser()}
+          title="Delete User"
+        />
+        <Text>{this.state.response}</Text>
       </View>
     )
   }
@@ -544,6 +736,22 @@ class Database {
         })
   }
 
+  // Get user's role with user ID
+  static getUserRole(userID, callback) {
+    let userPath = "/user/" + userID + "/details";
+
+    firebase.database().ref(userPath).on('value', (snapshot) => {
+
+      var userRole = "";
+
+      if (snapshot.val()) {
+        userRole = snapshot.val().userRole
+      }
+
+      callback(userRole)
+    });
+  }
+
   // Get user's name with user ID
   static listenUserName(userID, callback) {
 
@@ -578,12 +786,23 @@ class Database {
   static updateUserActivity(userID, activityKey, activityDate, activityDuration, activityDistance) {
     let userPath = "/user/" + userID + "/activities/" + activityKey;
     
-    // push() is used so that a unique ID is automatically generated for each new activity
     return firebase.database().ref(userPath).update({
       activityDate: activityDate,
       activityDistance: activityDistance,
       activityDuration: activityDuration,
       //activitySpeed: activitySpeed,
+    });
+  }
+
+  // Update an existing user
+  static updateUser(userID, userEmail, userLastName, userName , userManager) {
+    let userPath = "/user/" + userID + "/details/";
+    
+    return firebase.database().ref(userPath).update({
+      userEmail: userEmail,
+      userLastName: userLastName,
+      userName: userName,
+      userManager: userManager,
     });
   }
 
@@ -607,7 +826,6 @@ class Database {
         })
 
         // Will return all user activities to the callback function
-        console.log("IN FIREBASE:" + userActivities)
         callback(userActivities)
     });    
   }
@@ -619,6 +837,39 @@ class Database {
     var activityRef = firebase.database().ref(userPath);
 
     return activityRef.remove();
+  }
+
+  // Delete user
+  static deleteUser(userID) {
+    var userPath = "/user/" + userID;
+
+    var userRef = firebase.database().ref(userPath);
+
+    return userRef.remove();
+  }
+
+  // Get a list of users
+  // This will return both regular users, managers and other admins
+  static getListOfUsers(callback) {
+    var listPath = "/user";
+
+    var listRef = firebase.database().ref(listPath);
+
+    listRef.on('value', (snapshot) => {
+      var userList = [];
+
+      snapshot.forEach(function(childSnapshot) {
+        var childData = childSnapshot.val();
+        var snapshotKey = childSnapshot.key;
+
+        // Add key to childData
+        childData['key'] = snapshotKey;
+        userList.push(childData);
+      })
+
+      // Return list of users to the callback function
+      callback(userList)
+    });
   }
 }
 
@@ -633,6 +884,8 @@ const project30Palos = StackNavigator({
   NewActivity : { screen : AddNewActivityScreen },
   IndividualActivity: { screen : IndividualActivityScreen },
   UpdateActivity: { screen : UpdateActivityScreen },
+  AllUsers : { screen : AllUsersScreen },
+  EditUser : { screen : EditUserScreen },
 });
 
 AppRegistry.registerComponent('project30Palos', () => project30Palos);
