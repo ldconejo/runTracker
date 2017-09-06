@@ -135,7 +135,8 @@ class NewUserScreen extends React.Component {
                   userLastName: 'Doe',
                   userManager: 'None',
                   userRole: 'Regular User',
-                  response: 'Hola',
+                  response: '',
+                  isLoading: true,
                 };
   }
   static navigationOptions = {
@@ -154,6 +155,10 @@ class NewUserScreen extends React.Component {
             // Add remaining user data to the database
             Database.setUserData(this.state.userID, this.state.userEmail, this.state.userName, this.state.userLastName, this.state.userManager, this.state.userRole);
 
+            // Go back to the previous screen
+            const { goBack } = this.props.navigation;
+            goBack();
+
         } catch (error) {
             this.setState({
                 response: error.toString()
@@ -161,13 +166,33 @@ class NewUserScreen extends React.Component {
         }
 
     }
+    async getManagerList(){
+    try {
+        Database.getListOfManagers((managerList) => {
+          this.state.managerList = managerList
+          this.setState({
+            isLoading : false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }
   render() {
+    if (this.state.isLoading){
+      this.getManagerList();
+      return <View><Text>Loading...</Text></View>;
+    }
     return (
       <View style={{padding: 10}}>
         <TextInput
           style={{height: 40}}
           keyboardType="email-address"
           autoCapitalize = 'none'
+          autoCorrect = {false}
           placeholder="Enter email"
           onChangeText={(userEmail) => this.setState({userEmail})}
         />
@@ -186,13 +211,22 @@ class NewUserScreen extends React.Component {
           placeholder="Enter last name"
           onChangeText={(userLastName) => this.setState({userLastName})}
         />  
-        <TextInput
-          style={{height: 40}}
-          placeholder="Manager (optional)"
-          onChangeText={(userManager) => this.setState({userManager})}
-        />  
+        <Text>Manager: {this.state.userManager}</Text>
+        <FlatList
+          data={this.state.managerList}
+          renderItem={({item}) => 
+            <Button
+              onPress={() => this.setState({userManager : item.details.userEmail})}
+              title={item.details.userEmail}
+            /> }
+        />
+        <Button
+          onPress={() => this.setState({userManager : 'None'})}
+          title='None'
+        />
         <Picker
           selectedValue={this.state.userRole}
+          mode="dropdown"
           onValueChange={(itemValue, itemIndex) => this.setState({userRole: itemValue})}>
           <Picker.Item label="Regular User" value="Regular" />
           <Picker.Item label="Manager" value="Manager" />
@@ -226,7 +260,7 @@ class RegularUserScreen extends React.Component {
     
   }
   static navigationOptions = {
-    title: 'Welcome, user'
+    title: 'Welcome to 30Palos!'
   };
   render() {
     const { navigate } = this.props.navigation;
@@ -240,6 +274,10 @@ class RegularUserScreen extends React.Component {
           onPress={() => navigate('MyActivity')}
           title="My Activity"
         />
+        <Button
+          onPress={() => navigate('ChangePassword')}
+          title="Change Password"
+        />
       </View>
     );
   }
@@ -248,14 +286,22 @@ class RegularUserScreen extends React.Component {
 // Manager user screen
 class ManagerUserScreen extends React.Component {
   static navigationOptions = {
-    title: 'Welcome, Manager',
+    title: 'Manager',
   };
   render() {
+    const { navigate } = this.props.navigation;
     return (
       <View>
-        <Text>Placeholder</Text>
+        <Button
+          onPress={() => navigate('UserFromManager')}
+          title="View trainees"
+        />
+        <Button
+          onPress={() => navigate('ChangePassword')}
+          title="Change Password"
+        />
       </View>
-    )
+    );
   }
 }
 
@@ -275,10 +321,6 @@ class AdminUserScreen extends React.Component {
         <Button
           onPress={() => navigate('AllUsers')}
           title="Edit user"
-        />
-        <Button
-          onPress={() => navigate('DeleteUser')}
-          title="Delete user"
         />
       </View>
     )
@@ -390,6 +432,57 @@ class AllUsersScreen extends React.Component {
   }
 }
 
+// All users from one manager screen
+class AllUsersFromManagerScreen extends React.Component {
+  static navigationOptions = {
+    title: 'Select user to view',
+  };
+  constructor(props) {
+    super(props);
+    this.state = {
+                  userList: [],
+                  isLoading: true,
+                };
+  } 
+
+  async getUserList(){
+    try {
+        Database.getListOfUsers((userList) => {
+          this.state.userList = userList
+          this.setState({
+            // This is required to trigger a re-render once the data has been loaded
+            isLoading: false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }
+
+  render() {
+    const { navigate } = this.props.navigation;
+    if (this.state.isLoading){
+      this.getUserList();
+      return <View><Text>Loading...</Text></View>;
+    }
+    return (
+      <View>
+        <FlatList
+          data={this.state.userList}
+          renderItem={({item}) => 
+            <Button
+              onPress={() => navigate('EditUser', {userParams : item})}
+              title={item.details.userEmail}
+        /> }
+        />
+      </View>
+    )
+  }
+}
+
 class EditUserScreen extends React.Component {
   static navigationOptions = {
     title: 'Edit user',
@@ -403,7 +496,9 @@ class EditUserScreen extends React.Component {
       userName : 'None',
       userManager : 'None',
       userRole : 'None',
+      managerList : [],
       response : '',
+      isLoading : true,
     }
     // Get userID
     this.state.userID = this.props.navigation.state.params.userParams.key;
@@ -414,6 +509,21 @@ class EditUserScreen extends React.Component {
     this.state.userRole = this.props.navigation.state.params.userParams.details.userRole;
 
   }  
+    async getManagerList(){
+    try {
+        Database.getListOfManagers((managerList) => {
+          this.state.managerList = managerList
+          this.setState({
+            isLoading : false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }
   // Triggers update to the database
   async updateUser() {
     try {
@@ -421,8 +531,8 @@ class EditUserScreen extends React.Component {
         this.setState({
             response: "User updated"
         })
-        const { navigate } = this.props.navigation;
-        navigate('AdminUser');
+        const { goBack } = this.props.navigation;
+        goBack();
 
     } catch (error) {
         this.setState({
@@ -432,7 +542,7 @@ class EditUserScreen extends React.Component {
   }  
   // Handle deletion of user
   async deleteUser() {
-    const { navigate } = this.props.navigation;
+    const { goBack } = this.props.navigation;
     Alert.alert(
       'Delete User',
       'This user will be deleted. Are you sure?',
@@ -444,7 +554,7 @@ class EditUserScreen extends React.Component {
                                             '30Palos',
                                             'User Deleted',
                                             [
-                                              {text: 'OK', onPress: () => navigate('AdminUser')},
+                                              {text: 'OK', onPress: () => goBack()},
                                             ]
                                           )
                                         }},
@@ -452,8 +562,13 @@ class EditUserScreen extends React.Component {
       { cancelable: false }
     )
   }
+
   render() {
     const { navigate } = this.props.navigation;
+    if (this.state.isLoading){
+      this.getManagerList();
+      return <View><Text>Loading...</Text></View>;
+    }
     return(
       <View  style={{padding: 10}}>
         <Text>E-mail: {this.state.userEmail}</Text>
@@ -477,10 +592,24 @@ class EditUserScreen extends React.Component {
           onChangeText={(userName) => this.setState({userName})}
         />
         <Text>Manager: {this.state.userManager}</Text>
+        <FlatList
+          data={this.state.managerList}
+          renderItem={({item}) => 
+            <Button
+              onPress={() => this.setState({userManager : item.details.userEmail})}
+              title={item.details.userEmail}
+            /> }
+        />
+        <Button
+          onPress={() => this.setState({userManager : 'None'})}
+          title='None'
+        />
+        <Text>Role: {this.state.userRole}</Text>
         <Picker
           selectedValue={this.state.userRole}
+          mode="dropdown"
           onValueChange={(itemValue, itemIndex) => this.setState({userRole: itemValue})}>
-          <Picker.Item label="Regular User" value="Regular" />
+          <Picker.Item label="Regular User" value="Regular User" />
           <Picker.Item label="Manager" value="Manager" />
           <Picker.Item label="Admin" value="Admin" />
         </Picker>
@@ -525,7 +654,7 @@ class IndividualActivityScreen extends React.Component {
   }
   // Handle deletion of activity
   async deleteActivity() {
-    const { navigate } = this.props.navigation;
+    const { goBack } = this.props.navigation;
     Alert.alert(
       'Delete Activity',
       'This activiy will be deleted. Are you sure?',
@@ -537,7 +666,7 @@ class IndividualActivityScreen extends React.Component {
                                             '30Palos',
                                             'Activity Deleted',
                                             [
-                                              {text: 'OK', onPress: () => navigate('MyActivity')},
+                                              {text: 'OK', onPress: () => goBack()},
                                             ]
                                           )
                                         }},
@@ -721,8 +850,9 @@ class Firebase {
       });
   }
 }
-
+///////////////////////
 // Database operations
+///////////////////////
 class Database {
   // Add data for a new user
   static setUserData(userID, userEmail, userName, userLastName, userManager, userRole) {
@@ -795,7 +925,7 @@ class Database {
   }
 
   // Update an existing user
-  static updateUser(userID, userEmail, userLastName, userName , userManager) {
+  static updateUser(userID, userEmail, userLastName, userName , userManager, userRole) {
     let userPath = "/user/" + userID + "/details/";
     
     return firebase.database().ref(userPath).update({
@@ -803,6 +933,7 @@ class Database {
       userLastName: userLastName,
       userName: userName,
       userManager: userManager,
+      userRole: userRole,
     });
   }
 
@@ -829,6 +960,33 @@ class Database {
         callback(userActivities)
     });    
   }
+
+  // Get list of manager users
+  static getListOfManagers(callback) {
+    var listPath = "/user";
+
+    var listRef = firebase.database().ref(listPath);
+
+    listRef.on('value', (snapshot) => {
+      var userList = [];
+
+      snapshot.forEach(function(childSnapshot) {
+        var childData = childSnapshot.val();
+
+        // Check if the user is a manager
+        if(childData['details']['userRole'] == 'Manager'){
+          var snapshotKey = childSnapshot.key;
+
+          // Add key to childData
+          childData['key'] = snapshotKey;
+          userList.push(childData);
+        }
+      })
+
+      // Return list of users to the callback function
+      callback(userList)
+    });
+  }  
 
   // Delete activity from a user
   static deleteActivity(userID, activityKey) {
@@ -886,6 +1044,9 @@ const project30Palos = StackNavigator({
   UpdateActivity: { screen : UpdateActivityScreen },
   AllUsers : { screen : AllUsersScreen },
   EditUser : { screen : EditUserScreen },
+  UserFromManager : { screen : AllUsersFromManagerScreen },
 });
+
+console.disableYellowBox = true;
 
 AppRegistry.registerComponent('project30Palos', () => project30Palos);
