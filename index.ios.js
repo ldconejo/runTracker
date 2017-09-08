@@ -424,7 +424,7 @@ class MyActivityPerWeekScreen extends React.Component {
       return <View><Text>Loading...</Text></View>;
     }
     return (
-      <View>
+      <View style={{padding: 10}}>
         <FlatList
           data={this.state.userActivities}
           renderItem={({item}) => 
