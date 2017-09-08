@@ -765,13 +765,13 @@ class EditUserScreen extends React.Component {
           placeholder="New email"
           onChangeText={(userEmail) => this.setState({userEmail})}
         />
-        <Text>Last Name: {this.state.prevManagerKey}</Text>
+        <Text>Last Name: {this.state.userLastName}</Text>
         <TextInput
           style={{height: 40}}
           placeholder="New last name"
           onChangeText={(userLastName) => this.setState({userLastName})}
         />
-        <Text>Name: {this.state.userManagerKey}</Text>
+        <Text>Name: {this.state.userName}</Text>
         <TextInput
           style={{height: 40}}
           placeholder="New name"
