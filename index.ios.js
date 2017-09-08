@@ -6,6 +6,7 @@
 
 import * as firebase from 'firebase';
 import React, {Component} from 'react';
+import { DateUtils } from "react-day-picker";
 import {
   Alert,
   AppRegistry,
@@ -276,10 +277,6 @@ class RegularUserScreen extends React.Component {
           onPress={() => navigate('MyActivity', { userID : this.state.userID })}
           title="My Activity"
         />
-        <Button
-          onPress={() => navigate('ChangePassword')}
-          title="Change Password"
-        />
       </View>
     );
   }
@@ -298,10 +295,6 @@ class ManagerUserScreen extends React.Component {
           onPress={() => navigate('UsersFromManager', { managerID : firebase.auth().currentUser.uid })}
           title="View trainees"
         />
-        <Button
-          onPress={() => navigate('ChangePassword')}
-          title="Change Password"
-        />
       </View>
     );
   }
@@ -317,34 +310,8 @@ class AdminUserScreen extends React.Component {
     return (
       <View>
         <Button
-          onPress={() => navigate('AllUsers')}
+          onPress={() => navigate('AllUsersView')}
           title="View user"
-        />
-        <Button
-          onPress={() => navigate('AllUsers')}
-          title="Edit user"
-        />
-        <Button
-          onPress={() => navigate('ChangePassword')}
-          title="Change Password"
-        />
-      </View>
-    )
-  }
-}
-
-// Change password screen
-class ChangePasswordScreen extends React.Component {
-  static navigationOptions = {
-    title: 'Change Password',
-  };
-  render() {
-    const { navigate } = this.props.navigation;
-    return (
-      <View>
-        <Button
-          onPress={() => navigate('NewUser')}
-          title="Add new user"
         />
         <Button
           onPress={() => navigate('AllUsers')}
@@ -397,13 +364,127 @@ class MyActivityScreen extends React.Component {
     return (
       <View>
         <Button
-          onPress={() => navigate('AllUsers')}
+          onPress={() => navigate('ActivityByRange', {userID : this.state.userID})}
           title="View by date range"
         />
         <Button
-          onPress={() => navigate('AllUsers')}
+          onPress={() => navigate('MyActivityPerWeek', {userID : this.state.userID})}
           title="View weekly data"
         />
+        <FlatList
+          data={this.state.userActivities}
+          renderItem={({item}) => 
+            <Button
+              onPress={() => navigate('IndividualActivity', {userID : this.state.userID, activityParams : item})}
+              title={item.activityDate}
+        /> }
+        />
+      </View>
+    )
+  }
+}
+
+// My activity per week screen
+class MyActivityPerWeekScreen extends React.Component {
+  static navigationOptions = {
+    title: 'Weekly Report',
+  };
+  constructor(props) {
+    super(props);
+    this.state = {
+                  userID: 'None',
+                  userActivities: [],
+                  isLoading: true,
+                };
+    // Get userID
+    this.state.userID = this.props.navigation.state.params.userID;
+  }
+
+  async getUserActivities(){
+    try {
+        Database.getActivityPerWeek(this.state.userID, (userActivities) => {
+          this.state.userActivities = userActivities
+          this.setState({
+            // This is required to trigger a re-render once the data has been loaded
+            isLoading: false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }
+
+  render() {
+    const { navigate } = this.props.navigation;
+    if (this.state.isLoading){
+      this.getUserActivities();
+      return <View><Text>Loading...</Text></View>;
+    }
+    return (
+      <View>
+        <FlatList
+          data={this.state.userActivities}
+          renderItem={({item}) => 
+            <Text>Wk:{item.week.weekNumber}, {item.week.totalDistance} miles, {item.week.averageSpeed} minutes / mile</Text>
+          }
+        />
+      </View>
+    )
+  }
+
+}
+
+// My activity range screen, for searches by date range
+class MyActivityByRangeScreen extends React.Component {
+  static navigationOptions = {
+    title: 'Activity Information',
+  };
+  constructor(props) {
+    super(props);
+    this.state = {
+                  userID: 'None',
+                  startDate: 'None',
+                  endDate: 'None',
+                  userActivities: [],
+                  isLoading: true,
+                };
+    // Get userID
+    this.state.userID = this.props.navigation.state.params.userID;
+
+    // Get date params
+    this.state.startDate = this.props.navigation.state.params.startDate;
+    this.state.endDate = this.props.navigation.state.params.endDate;
+
+  } 
+
+  async getUserActivities(){
+    try {
+        Database.getUserActivitiesByRange(this.state.userID, this.state.startDate, this.state.endDate, (userActivities) => {
+          this.state.userActivities = userActivities
+          this.setState({
+            // This is required to trigger a re-render once the data has been loaded
+            isLoading: false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }
+
+  render() {
+    const { navigate } = this.props.navigation;
+    if (this.state.isLoading){
+      this.getUserActivities();
+      return <View><Text>Loading...</Text></View>;
+    }
+    return (
+      <View>
         <FlatList
           data={this.state.userActivities}
           renderItem={({item}) => 
@@ -460,6 +541,57 @@ class AllUsersScreen extends React.Component {
           renderItem={({item}) => 
             <Button
               onPress={() => navigate('EditUser', {userParams : item})}
+              title={item.details.userEmail}
+        /> }
+        />
+      </View>
+    )
+  }
+}
+
+// All users view screen (admin)
+class AllUsersViewScreen extends React.Component {
+  static navigationOptions = {
+    title: 'Select user to view',
+  };
+  constructor(props) {
+    super(props);
+    this.state = {
+                  userList: [],
+                  isLoading: true,
+                };
+  } 
+
+  async getUserList(){
+    try {
+        Database.getListOfUsers((userList) => {
+          this.state.userList = userList
+          this.setState({
+            // This is required to trigger a re-render once the data has been loaded
+            isLoading: false
+          })
+        });
+
+    } catch (error) {
+        this.setState({
+            response: error.toString()
+        })
+    }
+  }
+
+  render() {
+    const { navigate } = this.props.navigation;
+    if (this.state.isLoading){
+      this.getUserList();
+      return <View><Text>Loading...</Text></View>;
+    }
+    return (
+      <View>
+        <FlatList
+          data={this.state.userList}
+          renderItem={({item}) => 
+            <Button
+              onPress={() => navigate('MyActivity', { userID : item.key })}
               title={item.details.userEmail}
         /> }
         />
@@ -658,7 +790,6 @@ class EditUserScreen extends React.Component {
           onPress={() => this.setState({userManager : 'None', userManagerKey : 'None'})}
           title='None'
         />
-        <Text>Role: {this.state.userRole}</Text>
         <Picker
           selectedValue={this.state.userRole}
           mode="dropdown"
@@ -694,6 +825,8 @@ class IndividualActivityScreen extends React.Component {
       activityDate: 'None',
       activityDistance : 'None',
       activityDuration : 'None',
+      activitySpeedMinutes : 'None',
+      activitySpeedSeconds : 'None',
     }
     // Get userID
     this.state.userID = this.props.navigation.state.params.userID;
@@ -702,6 +835,32 @@ class IndividualActivityScreen extends React.Component {
     this.state.activityDate = this.props.navigation.state.params.activityParams.activityDate;
     this.state.activityDistance = this.props.navigation.state.params.activityParams.activityDistance;
     this.state.activityDuration = this.props.navigation.state.params.activityParams.activityDuration;
+    
+    // Calculate speed
+    var floatDistance = parseFloat(this.state.activityDistance);
+    var floatDuration = parseFloat(this.state.activityDuration);
+
+    var floatSpeed = floatDuration / floatDistance;
+    
+    var intMinutes = parseInt(floatSpeed);
+
+    var floatMinutes = parseFloat(intMinutes);
+
+    var floatSeconds = floatSpeed - floatMinutes;
+
+    floatSeconds = floatSeconds * 60;
+
+    var intSeconds = parseInt(floatSeconds);
+
+    this.state.activitySpeedMinutes = String(intMinutes);
+
+    var strSeconds = String(intSeconds);
+
+    if(strSeconds.length == 1){
+      strSeconds = "0" + strSeconds;
+    }
+
+    this.state.activitySpeedSeconds = strSeconds;
 
     // Get activityKey
     this.state.activityKey = this.props.navigation.state.params.activityParams.key;
@@ -735,6 +894,7 @@ class IndividualActivityScreen extends React.Component {
         <Text>Date: {this.state.activityDate}</Text>
         <Text>Distance: {this.state.activityDistance} miles</Text>
         <Text>Duration: {this.state.activityDuration} minutes</Text>
+        <Text>Speed: {this.state.activitySpeedMinutes}:{this.state.activitySpeedSeconds} minutes / mile</Text>
         <Button
           onPress={() => navigate('UpdateActivity', {userID : this.state.userID, activityParams : this.props.navigation.state.params.activityParams})}
           title="Edit activity"
@@ -758,7 +918,6 @@ class AddNewActivityScreen extends React.Component {
                   activityDate: 'None',
                   activityDistance: 'None',
                   activityDuration: 'None',
-                  //activitySpeed : 'None',
                   response: '',
                 };
     // Get userID
@@ -813,6 +972,7 @@ class AddNewActivityScreen extends React.Component {
   }
 }
 
+// For updates of regular user activity
 class UpdateActivityScreen extends React.Component {
   constructor(props) {
     super(props);
@@ -824,7 +984,7 @@ class UpdateActivityScreen extends React.Component {
                   response: '',
                 };
     // Get userID
-    this.state.userID = firebase.auth().currentUser.uid;
+    this.state.userID = this.props.navigation.state.params.userID;
 
     // Get activity parameters
     this.state.activityDate = this.props.navigation.state.params.activityParams.activityDate;
@@ -859,6 +1019,7 @@ class UpdateActivityScreen extends React.Component {
         <Text>Date: {this.state.activityDate}</Text>
         <TextInput
           style={{height: 40}}
+          keyboardType='numbers-and-punctuation'
           placeholder="New date (mm/dd/yy)"
           onChangeText={(activityDate) => this.setState({activityDate})}
         />
@@ -879,6 +1040,48 @@ class UpdateActivityScreen extends React.Component {
         <Button
           title="Update"
           onPress={() => this.updateActivity()}
+        />                   
+        <Text>{this.state.response}</Text>
+      </View>
+    );
+  } 
+}
+
+// To view activities by range of dates
+class ActivityByRangeScreen extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+                  userID : 'None',
+                  startDate: 'None',
+                  endDate: 'None',
+                  response: '',
+                };
+    // Get userID
+    this.state.userID = this.props.navigation.state.params.userID;
+  }  
+  static navigationOptions = {
+    title: 'View Activity by Range',
+  };
+  render() {
+    const { navigate } = this.props.navigation;
+    return (
+      <View style={{padding: 10}}>
+        <TextInput
+          style={{height: 40}}
+          keyboardType='numbers-and-punctuation'
+          placeholder="Start date (mm/dd/yy)"
+          onChangeText={(startDate) => this.setState({startDate})}
+        />
+        <TextInput
+          style={{height: 40}}
+          keyboardType='numbers-and-punctuation'
+          placeholder="End date (mm/dd/yy)"
+          onChangeText={(endDate) => this.setState({endDate})}
+        />
+        <Button
+          title="Show"
+          onPress={() => navigate('MyActivityByRange', { userID : this.state.userID, startDate : this.state.startDate, endDate : this.state.endDate })}
         />                   
         <Text>{this.state.response}</Text>
       </View>
@@ -975,7 +1178,6 @@ class Database {
       activityDate: activityDate,
       activityDistance: activityDistance,
       activityDuration: activityDuration,
-      //activitySpeed: activitySpeed,
     });
   }
 
@@ -1017,6 +1219,38 @@ class Database {
     });    
   }
 
+  // Get list of activities for a user on range of dates
+  static getUserActivitiesByRange(userID, startDate, endDate, callback) {
+    var userPath = "/user/" + userID + "/activities";
+
+    var activitiesRef = firebase.database().ref(userPath);
+
+    startDate = new Date(startDate);
+    endDate = new Date(endDate);
+    
+    activitiesRef.on('value', (snapshot) => {
+
+        var userActivities = [];
+
+        snapshot.forEach(function(childSnapshot) {
+          var childData = childSnapshot.val();
+          var snapshotKey = childSnapshot.key;
+
+          // Check if activity is within range
+          var activityDate = new Date(childData['activityDate']);
+
+          if ((activityDate >= startDate)&&(activityDate <= endDate)) {
+            // Add key to childData
+            childData['key'] = snapshotKey;
+            userActivities.push(childData);
+          }
+        })
+
+        // Will return all user activities to the callback function
+        callback(userActivities)
+    });    
+  }
+
   // Get list of manager users
   static getListOfManagers(callback) {
     var listPath = "/user";
@@ -1051,6 +1285,82 @@ class Database {
     var activityRef = firebase.database().ref(userPath);
 
     return activityRef.remove();
+  }
+
+  // Get list of total mileage and average speed per week per user
+  static getActivityPerWeek(userID, callback) {
+    var userPath = "/user/" + userID + "/activities";
+
+    var activitiesRef = firebase.database().ref(userPath);
+    
+    activitiesRef.on('value', (snapshot) => {
+
+      var weeklyStats = [];
+
+      snapshot.forEach(function(childSnapshot) {
+        var childData = childSnapshot.val();
+
+        var currentDate = new Date(childData['activityDate']);
+        var currentDistance = parseFloat(childData['activityDistance']);
+        var currentDuration = parseFloat(childData['activityDuration']);
+
+        // Calculate week
+        var weekNumber = DateUtils.getWeekNumber(currentDate);
+
+        // Iterate
+        var weekExists = false;
+        var weekIndex = 0;
+        for (index = 0; index < weeklyStats.length; ++index) {
+          if(weeklyStats[index].week.weekNumber == weekNumber){
+            weekExists = true;
+            weekIndex = index;
+            break;
+          }
+        }
+        
+        if(weekExists) {
+          weeklyStats[weekIndex].week.totalDistance += currentDistance;
+          weeklyStats[weekIndex].week.totalDuration += currentDuration;
+          weeklyStats[weekIndex].week.averageSpeed = Database._calculateSpeed(weeklyStats[weekIndex].week.totalDistance, weeklyStats[weekIndex].week.totalDuration)
+        }
+        else {
+          var averageSpeed = Database._calculateSpeed(currentDistance, currentDuration)
+          var newEntry = { "week": { "weekNumber" : weekNumber, "totalDistance" : currentDistance, "totalDuration" : currentDuration, "averageSpeed" : averageSpeed }};
+          weeklyStats.push(newEntry);
+        }
+
+      })
+
+        // Will return all user activities to the callback function
+        callback(weeklyStats)
+    });    
+  }
+
+  static _calculateSpeed(floatDistance, floatDuration) {
+
+    var floatSpeed = floatDuration / floatDistance;
+    
+    var intMinutes = parseInt(floatSpeed);
+
+    var floatMinutes = parseFloat(intMinutes);
+
+    var floatSeconds = floatSpeed - floatMinutes;
+
+    floatSeconds = floatSeconds * 60;
+
+    var intSeconds = parseInt(floatSeconds);
+
+    var strMinutes = String(intMinutes);
+
+    var strSeconds = String(intSeconds);
+
+    if(strSeconds.length == 1){
+      strSeconds = "0" + strSeconds;
+    }
+
+    var finalString = strMinutes + ":" + strSeconds;
+
+    return finalString;
   }
 
   // Delete user
@@ -1150,13 +1460,16 @@ const project30Palos = StackNavigator({
   ManagerUser : { screen : ManagerUserScreen },
   AdminUser : { screen : AdminUserScreen },
   MyActivity : { screen : MyActivityScreen },
+  MyActivityByRange : { screen : MyActivityByRangeScreen },
   NewActivity : { screen : AddNewActivityScreen },
   IndividualActivity: { screen : IndividualActivityScreen },
   UpdateActivity: { screen : UpdateActivityScreen },
   AllUsers : { screen : AllUsersScreen },
   EditUser : { screen : EditUserScreen },
   UsersFromManager : { screen : AllUsersFromManagerScreen },
-  ChangePassword : { screen : ChangePasswordScreen },
+  AllUsersView : { screen : AllUsersViewScreen },
+  ActivityByRange : { screen : ActivityByRangeScreen},
+  MyActivityPerWeek : { screen : MyActivityPerWeekScreen},
 });
 
 console.disableYellowBox = true;
