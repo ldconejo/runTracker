@@ -1,8 +1,3 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- * @flow
- */
 
 import * as firebase from 'firebase';
 import React, {Component} from 'react';
@@ -1098,12 +1093,12 @@ class Firebase {
    */
   static initialise() {
       firebase.initializeApp({
-        apiKey: "AIzaSyAFFb0sQCmtga-78QrG5QUuFKBOk-YCYmo",
-        authDomain: "palos-5bd92.firebaseapp.com",
-        databaseURL: "https://palos-5bd92.firebaseio.com",
-        projectId: "palos-5bd92",
-        storageBucket: "palos-5bd92.appspot.com",
-        messagingSenderId: "204756878847"
+        apiKey: "your-api-key-here",
+        authDomain: "your-auth-domain-here",
+        databaseURL: "your-database-url-here",
+        projectId: "your-project-id-here",
+        storageBucket: "your-storage-bucket-here",
+        messagingSenderId: "your-sender-id-here"
       });
   }
 }
